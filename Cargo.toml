@@ -1,0 +1,14 @@
+[package]
+name = "pulsemon"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-platform system monitor TUI — CPU, memory, disk, GPU, ports, process management"
+license = "MIT"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+sysinfo = "0.33"
+nvml-wrapper = "0.10"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
