@@ -9,13 +9,15 @@ mod command_palette;
 mod help;
 
 use ratatui::{
-    layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Paragraph, Tabs},
+    layout::{Constraint, Layout, Rect},
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, BorderType, Clear, Paragraph, Tabs},
     Frame,
 };
 
 use crate::app::{App, InputMode, View};
+use crate::theme;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let [tab_area, content_area, status_area] = Layout::vertical([
@@ -28,15 +30,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Tab bar
     let tab_titles = View::titles();
     let tabs = Tabs::new(tab_titles.to_vec())
-        .block(Block::bordered().title(" pulsemon "))
-        .select(app.view.index())
-        .style(Style::new().fg(Color::White))
-        .highlight_style(
-            Style::new()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Span::styled(" pulsemon ", theme::title_style())),
         )
-        .divider(" | ");
+        .select(app.view.index())
+        .style(theme::dim_style())
+        .highlight_style(theme::header_style())
+        .divider(Span::styled(" | ", Style::new().fg(theme::TEXT_MUTED)));
     frame.render_widget(tabs, tab_area);
 
     // Content area based on current view
@@ -51,16 +54,33 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
 
     // Status bar
-    let status_text = if let Some(msg) = app.status_text() {
-        format!(" {} ", msg)
+    let status_line = if let Some(msg) = app.status_text() {
+        Line::from(Span::styled(format!(" {} ", msg), Style::new().fg(theme::ORANGE)))
     } else {
         let rate = app.tick_rate.as_millis();
-        format!(
-            " q:quit ?:help /:filter s:sort K:kill ::cmd +/-:rate({}ms) Tab:view 1-7:jump ",
-            rate
-        )
+        Line::from(vec![
+            Span::styled(" q", Style::new().fg(theme::ORANGE)),
+            Span::styled(":quit ", theme::dim_style()),
+            Span::styled("?", Style::new().fg(theme::ORANGE)),
+            Span::styled(":help ", theme::dim_style()),
+            Span::styled("/", Style::new().fg(theme::ORANGE)),
+            Span::styled(":filter ", theme::dim_style()),
+            Span::styled("s", Style::new().fg(theme::ORANGE)),
+            Span::styled(":sort ", theme::dim_style()),
+            Span::styled("K", Style::new().fg(theme::ORANGE)),
+            Span::styled(":kill ", theme::dim_style()),
+            Span::styled(":", Style::new().fg(theme::ORANGE)),
+            Span::styled(":cmd ", theme::dim_style()),
+            Span::styled("+/-", Style::new().fg(theme::ORANGE)),
+            Span::styled(format!(":rate({}ms) ", rate), theme::dim_style()),
+            Span::styled("Tab", Style::new().fg(theme::ORANGE)),
+            Span::styled(":view ", theme::dim_style()),
+            Span::styled("1-7", Style::new().fg(theme::ORANGE)),
+            Span::styled(":jump", theme::dim_style()),
+        ])
     };
-    let status = Paragraph::new(status_text).style(Style::new().fg(Color::Black).bg(Color::DarkGray));
+    let status = Paragraph::new(status_line)
+        .style(Style::new().bg(theme::BG_HIGHLIGHT));
     frame.render_widget(status, status_area);
 
     // Overlays
@@ -78,39 +98,75 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 fn render_filter_bar(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    let filter_area = ratatui::layout::Rect {
+    let filter_area = Rect {
         x: 0,
         y: area.height.saturating_sub(3),
         width: area.width,
         height: 3,
     };
 
+    frame.render_widget(Clear, filter_area);
+
+    let title = Line::from(vec![
+        Span::styled(" Filter ", theme::title_style()),
+        Span::styled("(Esc to cancel) ", theme::dim_style()),
+    ]);
+
     let block = Block::bordered()
-        .title(" Filter (Esc to cancel) ")
-        .style(Style::new().fg(Color::Yellow));
-    let input = Paragraph::new(format!("/{}", app.filter_input)).block(block);
-    frame.render_widget(ratatui::widgets::Clear, filter_area);
+        .border_type(BorderType::Rounded)
+        .border_style(theme::active_border_style())
+        .title(title);
+
+    let input = Paragraph::new(Line::from(vec![
+        Span::styled("/", theme::dim_style()),
+        Span::styled(app.filter_input.clone(), Style::new().fg(theme::TEXT)),
+    ]))
+    .block(block);
+
     frame.render_widget(input, filter_area);
 }
 
 fn render_kill_confirm(frame: &mut Frame, app: &App) {
     if let Some((pid, name)) = &app.confirm_kill {
         let area = frame.area();
-        let popup_width = 50.min(area.width);
-        let popup_height = 5.min(area.height);
-        let popup_area = ratatui::layout::Rect {
-            x: (area.width - popup_width) / 2,
-            y: (area.height - popup_height) / 2,
+        let popup_width = 50u16.min(area.width);
+        let popup_height = 5u16.min(area.height);
+        let popup_area = Rect {
+            x: (area.width.saturating_sub(popup_width)) / 2,
+            y: (area.height.saturating_sub(popup_height)) / 2,
             width: popup_width,
             height: popup_height,
         };
 
-        let text = format!("Kill {} (PID {})?\n\n[y]es / [n]o", name, pid);
+        frame.render_widget(Clear, popup_area);
+
+        let title = Line::from(Span::styled(
+            " Confirm Kill ",
+            Style::new().fg(theme::RED).add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+
         let block = Block::bordered()
-            .title(" Confirm Kill ")
-            .style(Style::new().fg(Color::Red));
+            .border_type(BorderType::Rounded)
+            .border_style(Style::new().fg(theme::RED))
+            .title(title);
+
+        let text = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(format!("  Kill {} ", name), Style::new().fg(theme::TEXT)),
+                Span::styled(format!("(PID {})", pid), theme::dim_style()),
+                Span::styled("  ?", Style::new().fg(theme::TEXT)),
+            ]),
+            Line::from(vec![
+                Span::styled("  [", theme::dim_style()),
+                Span::styled("y", Style::new().fg(theme::RED)),
+                Span::styled("]es  /  [", theme::dim_style()),
+                Span::styled("n", Style::new().fg(theme::GREEN)),
+                Span::styled("]o", theme::dim_style()),
+            ]),
+        ];
+
         let popup = Paragraph::new(text).block(block);
-        frame.render_widget(ratatui::widgets::Clear, popup_area);
         frame.render_widget(popup, popup_area);
     }
 }

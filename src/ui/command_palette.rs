@@ -1,11 +1,13 @@
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style},
-    widgets::{Block, Clear, Paragraph},
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, BorderType, Clear, Paragraph},
     Frame,
 };
 
 use crate::app::App;
+use crate::theme;
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -20,9 +22,15 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(Clear, palette_area);
 
+    let title = Line::from(vec![
+        Span::styled(" Command ", theme::title_style()),
+        Span::styled("(Esc to cancel) ", theme::dim_style()),
+    ]);
+
     let block = Block::bordered()
-        .title(" Command (Esc to cancel) ")
-        .style(Style::default().fg(Color::Yellow));
+        .border_type(BorderType::Rounded)
+        .border_style(theme::active_border_style())
+        .title(title);
 
     let inner = block.inner(palette_area);
     frame.render_widget(block, palette_area);
@@ -34,13 +42,19 @@ pub fn render(frame: &mut Frame, app: &App) {
         ])
         .areas(inner);
 
-        let input = Paragraph::new(format!(":{}", app.command_input));
+        let input = Paragraph::new(Line::from(vec![
+            Span::styled(":", theme::dim_style()),
+            Span::styled(app.command_input.clone(), Style::new().fg(theme::TEXT)),
+        ]));
         frame.render_widget(input, input_area);
 
-        let error = Paragraph::new(err.clone()).style(Style::default().fg(Color::Red));
+        let error = Paragraph::new(Span::styled(err.clone(), Style::new().fg(theme::RED)));
         frame.render_widget(error, error_area);
     } else {
-        let input = Paragraph::new(format!(":{}", app.command_input));
+        let input = Paragraph::new(Line::from(vec![
+            Span::styled(":", theme::dim_style()),
+            Span::styled(app.command_input.clone(), Style::new().fg(theme::TEXT)),
+        ]));
         frame.render_widget(input, inner);
     }
 }

@@ -2,6 +2,7 @@ mod app;
 mod config;
 mod collectors;
 mod event;
+mod theme;
 mod types;
 mod ui;
 
