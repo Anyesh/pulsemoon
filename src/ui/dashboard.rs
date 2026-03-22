@@ -1,18 +1,20 @@
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Cell, Gauge, Paragraph, Row, Sparkline, Table},
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Cell, Gauge, Paragraph, Row, Sparkline, Table, block::BorderType},
     Frame,
 };
 
 use crate::app::App;
+use crate::theme;
 use crate::types::format_bytes;
 
 pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
     let [top_area, sparkline_area, disk_gpu_area, process_area] = Layout::vertical([
-        Constraint::Length(7),
         Constraint::Length(5),
-        Constraint::Length(7),
+        Constraint::Length(4),
+        Constraint::Length(5),
         Constraint::Fill(1),
     ])
     .areas(area);
@@ -21,16 +23,6 @@ pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
     render_sparklines(frame, app, sparkline_area);
     render_disk_gpu(frame, app, disk_gpu_area);
     render_mini_process_table(frame, app, process_area);
-}
-
-fn cpu_color(usage: f64) -> Color {
-    if usage < 50.0 {
-        Color::Green
-    } else if usage < 80.0 {
-        Color::Yellow
-    } else {
-        Color::Red
-    }
 }
 
 fn render_top_gauges(frame: &mut Frame, app: &App, area: Rect) {
@@ -44,8 +36,20 @@ fn render_top_gauges(frame: &mut Frame, app: &App, area: Rect) {
     let cpu_usage = app.cpu_metrics.global_usage as f64;
     let cpu_ratio = (cpu_usage / 100.0).clamp(0.0, 1.0);
     let cpu_gauge = Gauge::default()
-        .block(Block::bordered().title(" CPU "))
-        .gauge_style(Style::new().fg(cpu_color(cpu_usage)).add_modifier(Modifier::BOLD))
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Line::from(vec![
+                    Span::styled(" CPU ", theme::title_style()),
+                ])),
+        )
+        .gauge_style(
+            Style::new()
+                .fg(theme::gauge_color(cpu_usage))
+                .bg(theme::GAUGE_BG),
+        )
+        .use_unicode(true)
         .ratio(cpu_ratio)
         .label(format!("{:.1}%", cpu_usage));
     frame.render_widget(cpu_gauge, cpu_area);
@@ -59,8 +63,20 @@ fn render_top_gauges(frame: &mut Frame, app: &App, area: Rect) {
     };
     let mem_pct = mem_ratio * 100.0;
     let mem_gauge = Gauge::default()
-        .block(Block::bordered().title(" Memory "))
-        .gauge_style(Style::new().fg(cpu_color(mem_pct)).add_modifier(Modifier::BOLD))
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Line::from(vec![
+                    Span::styled(" Memory ", theme::title_style()),
+                ])),
+        )
+        .gauge_style(
+            Style::new()
+                .fg(theme::gauge_color(mem_pct))
+                .bg(theme::GAUGE_BG),
+        )
+        .use_unicode(true)
         .ratio(mem_ratio)
         .label(format!(
             "{} / {} ({:.1}%)",
@@ -80,18 +96,28 @@ fn render_sparklines(frame: &mut Frame, app: &App, area: Rect) {
 
     let cpu_data: Vec<u64> = app.cpu_metrics.history.iter().map(|v| *v as u64).collect();
     let cpu_sparkline = Sparkline::default()
-        .block(Block::bordered().title(" CPU History "))
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Span::styled(" CPU ", theme::title_style())),
+        )
         .data(&cpu_data)
         .max(100)
-        .style(Style::new().fg(Color::Cyan));
+        .style(Style::new().fg(theme::ORANGE));
     frame.render_widget(cpu_sparkline, cpu_area);
 
     let mem_data: Vec<u64> = app.memory_metrics.history.iter().map(|v| *v as u64).collect();
     let mem_sparkline = Sparkline::default()
-        .block(Block::bordered().title(" Memory History "))
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Span::styled(" Memory ", theme::title_style())),
+        )
         .data(&mem_data)
         .max(100)
-        .style(Style::new().fg(Color::Magenta));
+        .style(Style::new().fg(theme::ORANGE));
     frame.render_widget(mem_sparkline, mem_area);
 }
 
@@ -102,12 +128,15 @@ fn render_disk_gpu(frame: &mut Frame, app: &App, area: Rect) {
     ])
     .areas(area);
 
-    // Disk: show first 2 disks
-    let disk_block = Block::bordered().title(" Disks ");
+    // Disk section
+    let disk_block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(theme::border_style())
+        .title(Span::styled(" Disks ", theme::title_style()));
     let disk_inner = disk_block.inner(disk_area);
     frame.render_widget(disk_block, disk_area);
 
-    let disk_count = app.disk_metrics.len().min(2);
+    let disk_count = app.disk_metrics.len().min(3);
     if disk_count > 0 {
         let constraints: Vec<Constraint> = (0..disk_count)
             .map(|_| Constraint::Length(1))
@@ -115,13 +144,14 @@ fn render_disk_gpu(frame: &mut Frame, app: &App, area: Rect) {
             .collect();
         let disk_rows = Layout::vertical(constraints).split(disk_inner);
 
-        for (i, disk) in app.disk_metrics.iter().take(2).enumerate() {
+        for (i, disk) in app.disk_metrics.iter().take(3).enumerate() {
             let total = disk.total as f64;
             let ratio = if total > 0.0 {
                 (disk.used as f64 / total).clamp(0.0, 1.0)
             } else {
                 0.0
             };
+            let pct = ratio * 100.0;
             let label = format!(
                 "{}: {} / {}",
                 disk.name,
@@ -129,23 +159,31 @@ fn render_disk_gpu(frame: &mut Frame, app: &App, area: Rect) {
                 format_bytes(disk.total)
             );
             let gauge = Gauge::default()
-                .gauge_style(Style::new().fg(Color::Blue))
+                .gauge_style(
+                    Style::new()
+                        .fg(theme::gauge_color(pct))
+                        .bg(theme::GAUGE_BG),
+                )
+                .use_unicode(true)
                 .ratio(ratio)
                 .label(label);
             frame.render_widget(gauge, disk_rows[i]);
         }
     } else {
-        let msg = Paragraph::new("No disks detected");
+        let msg = Paragraph::new("No disks detected").style(theme::dim_style());
         frame.render_widget(msg, disk_inner);
     }
 
-    // GPU
-    let gpu_block = Block::bordered().title(" GPU ");
+    // GPU section
+    let gpu_block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(theme::border_style())
+        .title(Span::styled(" GPU ", theme::title_style()));
     let gpu_inner = gpu_block.inner(gpu_area);
     frame.render_widget(gpu_block, gpu_area);
 
     if app.gpu_metrics.is_empty() {
-        let msg = Paragraph::new("No GPU detected");
+        let msg = Paragraph::new("No GPU detected").style(theme::dim_style());
         frame.render_widget(msg, gpu_inner);
     } else {
         let gpu = &app.gpu_metrics[0];
@@ -159,11 +197,16 @@ fn render_disk_gpu(frame: &mut Frame, app: &App, area: Rect) {
         .areas(gpu_inner);
 
         let name_text = Paragraph::new(gpu.name.clone())
-            .style(Style::new().fg(Color::Cyan));
+            .style(Style::new().fg(theme::ORANGE).add_modifier(Modifier::BOLD));
         frame.render_widget(name_text, name_area);
 
         let gpu_gauge = Gauge::default()
-            .gauge_style(Style::new().fg(Color::Green))
+            .gauge_style(
+                Style::new()
+                    .fg(theme::gauge_color(utilization))
+                    .bg(theme::GAUGE_BG),
+            )
+            .use_unicode(true)
             .ratio(ratio)
             .label(format!("Util: {:.1}%", utilization));
         frame.render_widget(gpu_gauge, gauge_area);
@@ -177,23 +220,26 @@ fn render_mini_process_table(frame: &mut Frame, app: &App, area: Rect) {
         Cell::from("CPU%"),
         Cell::from("Memory"),
     ])
-    .style(
-        Style::new()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-    );
+    .style(theme::header_style());
 
     let rows: Vec<Row> = app
         .processes
         .iter()
-        .take(5)
-        .map(|p| {
+        .take(8)
+        .enumerate()
+        .map(|(i, p)| {
+            let style = if i % 2 == 1 {
+                Style::new().bg(theme::BG_ALT_ROW).fg(theme::TEXT)
+            } else {
+                theme::text_style()
+            };
             Row::new(vec![
                 Cell::from(p.pid.to_string()),
                 Cell::from(p.name.clone()),
                 Cell::from(format!("{:.1}", p.cpu_usage)),
                 Cell::from(format_bytes(p.memory)),
             ])
+            .style(style)
         })
         .collect();
 
@@ -206,7 +252,12 @@ fn render_mini_process_table(frame: &mut Frame, app: &App, area: Rect) {
 
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::bordered().title(" Top Processes "));
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(theme::border_style())
+                .title(Span::styled(" Top Processes ", theme::title_style())),
+        );
 
     frame.render_widget(table, area);
 }

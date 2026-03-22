@@ -1,15 +1,18 @@
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
-    widgets::{Block, Clear, Paragraph},
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, BorderType, Clear, Paragraph},
     Frame,
 };
+
+use crate::theme;
 
 pub fn render(frame: &mut Frame) {
     let area = frame.area();
 
-    let popup_width = 60u16.min(area.width);
-    let popup_height = 22u16.min(area.height);
+    let popup_width = 62u16.min(area.width);
+    let popup_height = 26u16.min(area.height);
 
     let popup_area = Rect {
         x: (area.width.saturating_sub(popup_width)) / 2,
@@ -20,36 +23,81 @@ pub fn render(frame: &mut Frame) {
 
     frame.render_widget(Clear, popup_area);
 
-    let help_text = "\
-Navigation
-  1-7         Jump to view
-  Tab/S-Tab   Cycle views
-  Esc         Back to dashboard / quit
+    let key_style = Style::new().fg(theme::TEXT);
+    let desc_style = theme::dim_style();
+    let section_style = theme::header_style();
+    let blank = Line::from("");
 
-Tables
-  j/k \u{2191}/\u{2193}    Navigate rows
-  PgUp/PgDn   Page scroll
-  s/S         Cycle sort / reverse
-  /           Filter
-  K/Del       Kill selected
+    let lines = vec![
+        blank.clone(),
+        Line::from(Span::styled("  Navigation", section_style)),
+        blank.clone(),
+        Line::from(vec![
+            Span::styled("    1-7           ", key_style),
+            Span::styled("Jump to view", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    Tab / S-Tab   ", key_style),
+            Span::styled("Cycle views", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    Esc           ", key_style),
+            Span::styled("Back to dashboard / quit", desc_style),
+        ]),
+        blank.clone(),
+        Line::from(Span::styled("  Tables", section_style)),
+        blank.clone(),
+        Line::from(vec![
+            Span::styled("    j/k  \u{2191}/\u{2193}      ", key_style),
+            Span::styled("Navigate rows", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    PgUp / PgDn   ", key_style),
+            Span::styled("Page scroll", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    s / S         ", key_style),
+            Span::styled("Cycle sort / reverse", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    /             ", key_style),
+            Span::styled("Filter", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    K / Del       ", key_style),
+            Span::styled("Kill selected", desc_style),
+        ]),
+        blank.clone(),
+        Line::from(Span::styled("  Actions", section_style)),
+        blank.clone(),
+        Line::from(vec![
+            Span::styled("    :             ", key_style),
+            Span::styled("Command palette", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    + / -         ", key_style),
+            Span::styled("Adjust refresh rate", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    ?             ", key_style),
+            Span::styled("Toggle this help", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    q             ", key_style),
+            Span::styled("Quit", desc_style),
+        ]),
+    ];
 
-Actions
-  :           Command palette
-  +/-         Adjust refresh rate
-  ?           Toggle this help
-  q           Quit
-
-Commands
-  :kill <pid>        Kill by PID
-  :kill-port <port>  Kill by port
-  :sort <column>     Sort table
-  :rate <ms>         Set refresh rate
-  :filter <text>     Filter table";
+    let title = Line::from(vec![
+        Span::styled(" Help ", theme::title_style()),
+        Span::styled("\u{2014} Keybindings ", theme::dim_style()),
+    ]);
 
     let block = Block::bordered()
-        .title(" Help \u{2014} Keybindings ")
-        .style(Style::default().fg(Color::White));
+        .border_type(BorderType::Rounded)
+        .border_style(theme::border_style())
+        .title(title);
 
-    let paragraph = Paragraph::new(help_text).block(block);
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup_area);
 }
