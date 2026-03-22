@@ -118,7 +118,7 @@ fn resolve_pids(ports: &mut [PortInfo]) {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
             if let Ok(pid) = name_str.parse::<u32>() {
-                let fd_dir = proc_dir.join(&name_str).join("fd");
+                let fd_dir = proc_dir.join(&*name_str).join("fd");
                 if let Ok(fds) = fs::read_dir(&fd_dir) {
                     for fd in fds.flatten() {
                         if let Ok(link) = fs::read_link(fd.path()) {
