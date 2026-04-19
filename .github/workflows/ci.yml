@@ -7,25 +7,46 @@ on:
 
 jobs:
   check:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: pulsemon-linux-amd64
-            binary: target/release/pulsemon
-          - os: macos-latest
-            artifact: pulsemon-macos-amd64
-            binary: target/release/pulsemon
+            target: x86_64-unknown-linux-gnu
+            artifact: pulsemon-linux-x86_64
+            binary: target/x86_64-unknown-linux-gnu/release/pulsemon
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: pulsemon-linux-arm64
+            binary: target/aarch64-unknown-linux-gnu/release/pulsemon
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: pulsemon-macos-x86_64
+            binary: target/x86_64-apple-darwin/release/pulsemon
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: pulsemon-macos-arm64
+            binary: target/aarch64-apple-darwin/release/pulsemon
           - os: windows-latest
-            artifact: pulsemon-windows-amd64.exe
-            binary: target/release/pulsemon.exe
+            target: x86_64-pc-windows-msvc
+            artifact: pulsemon-windows-x86_64.exe
+            binary: target/x86_64-pc-windows-msvc/release/pulsemon.exe
+
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
-      - run: cargo test
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Run tests
+        run: cargo test --target ${{ matrix.target }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
@@ -33,3 +54,4 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.binary }}
           retention-days: 30
+          if-no-files-found: error

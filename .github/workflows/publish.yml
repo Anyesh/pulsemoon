@@ -1,0 +1,34 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish crate
+    runs-on: ubuntu-latest
+    if: github.repository == 'Anyesh/pulsemoon'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Verify publish
+        run: |
+          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[0].version')
+          TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          echo "Published version: $VERSION"
+          echo "Tag version: $TAG_VERSION"
+          if [ "$VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch: tag $TAG_VERSION != published $VERSION"
+            exit 1
+          fi

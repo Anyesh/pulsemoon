@@ -13,20 +13,21 @@ jobs:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: pulsemon-linux-amd64
-          - os: macos-latest
+            artifact: pulsemon-linux-x86_64
+          - os: macos-13
             target: x86_64-apple-darwin
-            artifact: pulsemon-macos-amd64
-          - os: macos-latest
+            artifact: pulsemon-macos-x86_64
+          - os: macos-14
             target: aarch64-apple-darwin
             artifact: pulsemon-macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: pulsemon-windows-amd64.exe
+            artifact: pulsemon-windows-x86_64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -39,19 +40,34 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
-        run: cp target/${{ matrix.target }}/release/pulsemon ${{ matrix.artifact }}
+      - name: Strip binary (Linux only)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: strip target/${{ matrix.target }}/release/pulsemon
 
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: cp target/${{ matrix.target }}/release/pulsemon.exe ${{ matrix.artifact }}
+      - name: Rename binary
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mv target/${{ matrix.target }}/release/pulsemon.exe ${{ matrix.artifact }}
+          else
+            mv target/${{ matrix.target }}/release/pulsemon ${{ matrix.artifact }}
+          fi
+
+      - name: Generate SHA256 checksum
+        run: sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
+          retention-days: 7
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}.sha256
+          path: ${{ matrix.artifact }}.sha256
+          retention-days: 7
 
   release:
     name: Create Release
@@ -64,9 +80,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: pulsemon-*
+          merge-multi-piece: true
 
       - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: artifacts/pulsemon-*
           generate_release_notes: true
+          draft: false
+          prerelease: false
