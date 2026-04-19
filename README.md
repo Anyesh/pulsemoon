@@ -1,6 +1,6 @@
 # pulsemon
 
-Cross-platform system monitor TUI. Single binary, zero dependencies.
+Cross-platform system monitor TUI with zero dependencies.
 
 Monitors CPU, memory, disk, GPU, processes, and ports. Kill anything from the UI.
 
